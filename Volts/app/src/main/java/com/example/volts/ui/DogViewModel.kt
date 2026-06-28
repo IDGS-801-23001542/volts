@@ -82,23 +82,67 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
     fun moveRight() = bluetooth.sendCommand("R")
     fun stop() = bluetooth.sendCommand("S")
 
-    fun feed() {
-        updateStats(hunger = 25, energy = -5)
+    fun feedCookie() {
+        updateStats(
+            hunger = 15,
+            health = 10,
+            energy = -10
+        )
         bluetooth.sendCommand("E")
     }
 
-    fun pet() {
-        updateStats(happiness = 20, health = 5)
-        bluetooth.sendCommand("A")
+    fun feedBone() {
+        updateStats(
+            hunger = 10,
+            health = 5,
+            energy = -5
+        )
+        bluetooth.sendCommand("E")
     }
 
-    fun play() {
-        updateStats(happiness = 25, energy = -15, hunger = -10)
+    fun feedChili() {
+        updateStats(
+            hunger = 5,
+            happiness = -30,
+            energy = -15,
+            health = -30
+        )
+        bluetooth.sendCommand("E")
+    }
+
+    fun playBall() {
+        updateStats(
+            hunger = -10,
+            energy = -15,
+            happiness = 15,
+            health = 10
+        )
         bluetooth.sendCommand("J")
     }
 
+    fun playStick() {
+        updateStats(
+            hunger = -5,
+            energy = -10,
+            happiness = 10,
+            health = 5
+        )
+        bluetooth.sendCommand("J")
+    }
+
+    fun petDog() {
+        updateStats(
+            happiness = 5
+        )
+        bluetooth.sendCommand("A")
+    }
+
     fun rest() {
-        updateStats(energy = 30, hunger = -5)
+        updateStats(
+            energy = 5,
+            hunger = -10,
+            health = -5
+        )
         bluetooth.sendCommand("Z")
     }
 

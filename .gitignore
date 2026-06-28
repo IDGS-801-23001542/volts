@@ -1,0 +1,18 @@
+# Android
+.idea/
+.gradle/
+local.properties
+**/build/
+captures/
+
+# Node
+volts-backend/node_modules/
+
+# Logs
+*.log
+
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
