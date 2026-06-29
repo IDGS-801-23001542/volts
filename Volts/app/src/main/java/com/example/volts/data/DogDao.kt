@@ -16,6 +16,7 @@ data class DogEntity(
     val health: Int = 100,
     val battery: Int = 100,
     val alive: Boolean = true,
+    val sleeping: Boolean = false,
     val color: String = "Blanco",
     val accessory: String = "Collar",
     val deathReason: String? = null

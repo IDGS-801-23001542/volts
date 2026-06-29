@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [DogEntity::class],
-    version = 1
+    version = 2
 )
 abstract class VoltsDatabase : RoomDatabase() {
 
@@ -23,7 +23,9 @@ abstract class VoltsDatabase : RoomDatabase() {
                     context.applicationContext,
                     VoltsDatabase::class.java,
                     "volts_db"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
 
                 INSTANCE = instance
                 instance

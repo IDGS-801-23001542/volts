@@ -11,6 +11,7 @@ import com.example.volts.data.VoltsDatabase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 class DogViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -31,12 +32,48 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         loadDog()
+        startStatsTimer()
     }
 
     fun loadDog() {
         viewModelScope.launch {
             _dog.value = repository.getActiveDog()
         }
+    }
+
+    private fun startStatsTimer() {
+        viewModelScope.launch {
+            while (true) {
+                delay(5 * 60 * 1000L)
+
+                val current = _dog.value ?: continue
+
+                if (!current.alive) continue
+
+                if (current.sleeping) {
+                    applySleepingTick()
+                } else {
+                    applyAwakeTick()
+                }
+            }
+        }
+    }
+
+    private fun applyAwakeTick() {
+        updateStats(
+            hunger = -5,
+            happiness = -5,
+            energy = -5,
+            health = -2
+        )
+    }
+
+    private fun applySleepingTick() {
+        updateStats(
+            energy = 5,
+            hunger = -10,
+            health = -5
+        )
     }
 
     fun createDog(name: String) {
@@ -137,13 +174,27 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
         bluetooth.sendCommand("A")
     }
 
-    fun rest() {
-        updateStats(
-            energy = 5,
-            hunger = -10,
-            health = -5
-        )
-        bluetooth.sendCommand("Z")
+    fun toggleSleep() {
+        viewModelScope.launch {
+            val current = _dog.value ?: return@launch
+
+            val updated = current.copy(
+                sleeping = !current.sleeping
+            )
+
+            _dog.value = updated
+            repository.updateDog(updated)
+
+            if (updated.sleeping) {
+                _message.value = "VOLTS está dormido"
+                bluetooth.sendCommand("Z")
+            } else {
+                _message.value = "VOLTS despertó"
+            }
+
+            sendStateToArduino()
+            checkDeath()
+        }
     }
 
     private fun updateStats(

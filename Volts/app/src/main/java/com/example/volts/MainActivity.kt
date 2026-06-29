@@ -33,10 +33,47 @@ import coil3.gif.GifDecoder
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.statusBarsPadding
 import kotlinx.coroutines.delay
+import android.media.SoundPool
+import androidx.compose.runtime.DisposableEffect
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 
 enum class ActionMenu {
     FOOD,
     PLAY
+}
+
+enum class DragToy {
+    BALL,
+    STICK
+}
+
+enum class DragFood {
+    COOKIE,
+    BONE,
+    CHILI
+}
+
+fun toyImage(toy: DragToy): Int {
+    return when (toy) {
+        DragToy.BALL -> R.drawable.toy_ball
+        DragToy.STICK -> R.drawable.toy_stick
+    }
+}
+
+fun foodImage(food: DragFood): Int {
+    return when (food) {
+        DragFood.COOKIE -> R.drawable.food_cookie
+        DragFood.BONE -> R.drawable.food_bone
+        DragFood.CHILI -> R.drawable.food_chili
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -88,7 +125,7 @@ fun VoltsApp(viewModel: DogViewModel) {
             onStick = { viewModel.playStick() },
 
             onPet = { viewModel.petDog() },
-            onRest = { viewModel.rest() },
+            onRest = { viewModel.toggleSleep() },
 
             onMoveForward = { viewModel.moveForward() },
             onMoveBack = { viewModel.moveBack() },
@@ -202,17 +239,77 @@ fun DogHomeScreen(
     onMoveRight: () -> Unit,
     onStop: () -> Unit
 ) {
-    var showMovementControls by remember { mutableStateOf(false) }
+    var showBluetoothModal by remember { mutableStateOf(false) }
 
-    var isSleeping by remember { mutableStateOf(false) }
     var temporaryDogAnimation by remember { mutableStateOf<Int?>(null) }
+
+    var temporaryAnimationDurationMs by remember { mutableStateOf(3000L) }
+
+    var dogDropArea by remember { mutableStateOf<Rect?>(null) }
+
+    var mouthDropArea by remember { mutableStateOf<Rect?>(null) }
+
+    val context = LocalContext.current
+
+    val soundPool = remember {
+        SoundPool.Builder()
+            .setMaxStreams(2)
+            .build()
+    }
+
+    val barkSoundId = remember {
+        soundPool.load(context, R.raw.dog_bark, 1)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            soundPool.release()
+        }
+    }
+
+    fun playBark() {
+        soundPool.play(
+            barkSoundId,
+            1f,
+            1f,
+            1,
+            0,
+            1f
+        )
+    }
 
     fun playTemporaryAnimation(animationRes: Int, durationMs: Long, action: () -> Unit) {
         action()
         temporaryDogAnimation = animationRes
     }
 
-    var temporaryAnimationDurationMs by remember { mutableStateOf(3000L) }
+    fun handleToyDrop(toy: DragToy) {
+        temporaryAnimationDurationMs = 7000L
+
+        playTemporaryAnimation(R.drawable.dog_play, temporaryAnimationDurationMs) {
+            when (toy) {
+                DragToy.BALL -> onBall()
+                DragToy.STICK -> onStick()
+            }
+        }
+
+        kotlinx.coroutines.GlobalScope.launch {
+            delay(6208)
+            playBark()
+        }
+    }
+
+    fun handleFoodDrop(food: DragFood) {
+        temporaryAnimationDurationMs = 3800L
+
+        playTemporaryAnimation(R.drawable.dog_eat, temporaryAnimationDurationMs) {
+            when (food) {
+                DragFood.COOKIE -> onCookie()
+                DragFood.BONE -> onBone()
+                DragFood.CHILI -> onChili()
+            }
+        }
+    }
 
     LaunchedEffect(temporaryDogAnimation) {
         if (temporaryDogAnimation != null) {
@@ -222,7 +319,7 @@ fun DogHomeScreen(
     }
 
     val baseDogAnimation = when {
-        isSleeping -> R.drawable.dog_sleep
+        dog.sleeping -> R.drawable.dog_sleep
         dog.health < 50 || dog.hunger < 50 -> R.drawable.dog_sick
         dog.happiness < 50 || dog.energy < 50 -> R.drawable.dog_sad
         else -> R.drawable.dog_idle
@@ -230,7 +327,7 @@ fun DogHomeScreen(
 
     val currentDogAnimation = temporaryDogAnimation ?: baseDogAnimation
 
-    val currentBackground = if (isSleeping) {
+    val currentBackground = if (dog.sleeping) {
         R.drawable.background_night
     } else {
         R.drawable.background_day
@@ -278,12 +375,27 @@ fun DogHomeScreen(
                         .fillMaxWidth(0.94f)
                         .aspectRatio(1f)
                         .align(Alignment.BottomCenter)
+                        .onGloballyPositioned { coordinates ->
+                            val dogBounds = coordinates.boundsInRoot()
+                            dogDropArea = dogBounds
+
+                            mouthDropArea = Rect(
+                                left = dogBounds.left + dogBounds.width * 0.38f,
+                                top = dogBounds.top + dogBounds.height * 0.50f,
+                                right = dogBounds.left + dogBounds.width * 0.62f,
+                                bottom = dogBounds.top + dogBounds.height * 0.70f
+                            )
+                        }
                 )
             }
 
             Spacer(modifier = Modifier.height(28.dp))
 
             MainActionButtons(
+
+                dogDropArea = dogDropArea,
+                mouthDropArea = mouthDropArea,
+
                 onCookie = {
                     temporaryAnimationDurationMs = 3800L
                     playTemporaryAnimation(R.drawable.dog_eat, temporaryAnimationDurationMs) {
@@ -304,16 +416,10 @@ fun DogHomeScreen(
                 },
 
                 onBall = {
-                    temporaryAnimationDurationMs = 7000L
-                    playTemporaryAnimation(R.drawable.dog_play, temporaryAnimationDurationMs) {
-                        onBall()
-                    }
+                    handleToyDrop(DragToy.BALL)
                 },
                 onStick = {
-                    temporaryAnimationDurationMs = 7000L
-                    playTemporaryAnimation(R.drawable.dog_play, temporaryAnimationDurationMs) {
-                        onStick()
-                    }
+                    handleToyDrop(DragToy.STICK)
                 },
 
                 onPet = {
@@ -321,17 +427,37 @@ fun DogHomeScreen(
                     playTemporaryAnimation(R.drawable.dog_happy, temporaryAnimationDurationMs) {
                         onPet()
                     }
+
+                    kotlinx.coroutines.GlobalScope.launch {
+                        delay(1250)
+                        playBark()
+                    }
                 },
                 onRest = {
-                    if (!isSleeping) {
-                        onRest()
-                        isSleeping = true
-                        temporaryDogAnimation = null
-                    } else {
-                        isSleeping = false
-                        temporaryDogAnimation = null
-                    }
+                    onRest()
+                    temporaryDogAnimation = null
                 }
+            )
+        }
+
+        BluetoothFloatingButton(
+            onClick = { showBluetoothModal = true },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 96.dp, end = 18.dp)
+        )
+
+        if (showBluetoothModal) {
+            BluetoothControlModal(
+                message = message,
+                onClose = { showBluetoothModal = false },
+                onConnectBluetooth = onConnectBluetooth,
+                onMoveForward = onMoveForward,
+                onMoveBack = onMoveBack,
+                onMoveLeft = onMoveLeft,
+                onMoveRight = onMoveRight,
+                onStop = onStop
             )
         }
     }
@@ -403,6 +529,8 @@ fun StatusItem(
 
 @Composable
 fun MainActionButtons(
+    dogDropArea: Rect?,
+    mouthDropArea: Rect?,
 
     onCookie: () -> Unit,
     onBone: () -> Unit,
@@ -429,9 +557,35 @@ fun MainActionButtons(
                     onClick = { openedMenu = null }
                 )
 
-                ActionButton(R.drawable.food_cookie, "Galleta", onCookie)
-                ActionButton(R.drawable.food_bone, "Hueso", onBone)
-                ActionButton(R.drawable.food_chili, "Chile", onChili)
+                DraggableFoodButton(
+                    food = DragFood.COOKIE,
+                    label = "Galleta",
+                    mouthDropArea = mouthDropArea,
+                    onDroppedOnMouth = {
+                        onCookie()
+                        openedMenu = null
+                    }
+                )
+
+                DraggableFoodButton(
+                    food = DragFood.BONE,
+                    label = "Hueso",
+                    mouthDropArea = mouthDropArea,
+                    onDroppedOnMouth = {
+                        onBone()
+                        openedMenu = null
+                    }
+                )
+
+                DraggableFoodButton(
+                    food = DragFood.CHILI,
+                    label = "Chile",
+                    mouthDropArea = mouthDropArea,
+                    onDroppedOnMouth = {
+                        onChili()
+                        openedMenu = null
+                    }
+                )
             }
 
             ActionMenu.PLAY -> {
@@ -447,8 +601,25 @@ fun MainActionButtons(
                     onClick = { openedMenu = null }
                 )
 
-                ActionButton(R.drawable.toy_ball, "Pelota", onBall)
-                ActionButton(R.drawable.toy_stick, "Rama", onStick)
+                DraggableToyButton(
+                    toy = DragToy.BALL,
+                    label = "Pelota",
+                    dogDropArea = dogDropArea,
+                    onDroppedOnDog = {
+                        onBall()
+                        openedMenu = null
+                    }
+                )
+
+                DraggableToyButton(
+                    toy = DragToy.STICK,
+                    label = "Rama",
+                    dogDropArea = dogDropArea,
+                    onDroppedOnDog = {
+                        onStick()
+                        openedMenu = null
+                    }
+                )
             }
 
             null -> {
@@ -490,6 +661,152 @@ fun ActionButton(
         ) {
             Image(
                 painter = painterResource(id = iconRes),
+                contentDescription = label,
+                modifier = Modifier.size(45.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(5.dp))
+
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color.White
+        )
+    }
+}
+
+@Composable
+fun DraggableToyButton(
+    toy: DragToy,
+    label: String,
+    dogDropArea: Rect?,
+    onDroppedOnDog: () -> Unit
+) {
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var itemBounds by remember { mutableStateOf<Rect?>(null) }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(82.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .offset {
+                    IntOffset(
+                        offset.x.roundToInt(),
+                        offset.y.roundToInt()
+                    )
+                }
+                .size(70.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.90f))
+                .onGloballyPositioned { coordinates ->
+                    itemBounds = coordinates.boundsInRoot()
+                }
+                .pointerInput(toy) {
+                    detectDragGestures(
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            offset += dragAmount
+                        },
+                        onDragEnd = {
+                            val currentBounds = itemBounds
+                            val itemCenter = currentBounds?.center
+
+                            if (
+                                dogDropArea != null &&
+                                itemCenter != null &&
+                                dogDropArea.contains(itemCenter)
+                            ) {
+                                onDroppedOnDog()
+                            }
+
+                            offset = Offset.Zero
+                        },
+                        onDragCancel = {
+                            offset = Offset.Zero
+                        }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = toyImage(toy)),
+                contentDescription = label,
+                modifier = Modifier.size(45.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(5.dp))
+
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color.White
+        )
+    }
+}
+
+@Composable
+fun DraggableFoodButton(
+    food: DragFood,
+    label: String,
+    mouthDropArea: Rect?,
+    onDroppedOnMouth: () -> Unit
+) {
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var itemBounds by remember { mutableStateOf<Rect?>(null) }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(82.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .offset {
+                    IntOffset(
+                        offset.x.roundToInt(),
+                        offset.y.roundToInt()
+                    )
+                }
+                .size(70.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.90f))
+                .onGloballyPositioned { coordinates ->
+                    itemBounds = coordinates.boundsInRoot()
+                }
+                .pointerInput(food) {
+                    detectDragGestures(
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            offset += dragAmount
+                        },
+                        onDragEnd = {
+                            val currentBounds = itemBounds
+                            val itemCenter = currentBounds?.center
+
+                            if (
+                                mouthDropArea != null &&
+                                itemCenter != null &&
+                                mouthDropArea.contains(itemCenter)
+                            ) {
+                                onDroppedOnMouth()
+                            }
+
+                            offset = Offset.Zero
+                        },
+                        onDragCancel = {
+                            offset = Offset.Zero
+                        }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = foodImage(food)),
                 contentDescription = label,
                 modifier = Modifier.size(45.dp)
             )
@@ -594,4 +911,111 @@ fun AnimatedDogImage(
         modifier = modifier,
         contentScale = ContentScale.Fit
     )
+}
+
+@Composable
+fun BluetoothFloatingButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier
+            .size(54.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.90f))
+    ) {
+        Text(
+            text = "BT",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color(0xFF6F4FB5)
+        )
+    }
+}
+
+@Composable
+fun BluetoothControlModal(
+    message: String,
+    onClose: () -> Unit,
+    onConnectBluetooth: () -> Unit,
+    onMoveForward: () -> Unit,
+    onMoveBack: () -> Unit,
+    onMoveLeft: () -> Unit,
+    onMoveRight: () -> Unit,
+    onStop: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.72f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.90f),
+            shape = RoundedCornerShape(28.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Control Bluetooth",
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = message,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = onConnectBluetooth,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(26.dp)
+                ) {
+                    Text(
+                        text = "Conectar a VOLTS",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(26.dp))
+
+                MovementControls(
+                    onMoveForward = onMoveForward,
+                    onMoveBack = onMoveBack,
+                    onMoveLeft = onMoveLeft,
+                    onMoveRight = onMoveRight,
+                    onStop = onStop
+                )
+
+                Spacer(modifier = Modifier.height(26.dp))
+
+                OutlinedButton(
+                    onClick = onClose,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(25.dp)
+                ) {
+                    Text(
+                        text = "Cerrar",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
 }

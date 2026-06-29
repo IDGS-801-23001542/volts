@@ -7,6 +7,7 @@ captures/
 
 # Node
 volts-backend/node_modules/
+volts-backend/.env
 
 # Logs
 *.log
