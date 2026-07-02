@@ -44,6 +44,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 enum class ActionMenu {
     FOOD,
@@ -84,6 +85,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
 
         permissionLauncher.launch(
@@ -160,6 +162,15 @@ fun CreateDogScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.logo_volts),
+                contentDescription = "Logo VOLTS",
+                modifier = Modifier.size(180.dp),
+                contentScale = ContentScale.Fit
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             Text(
                 text = "VOLTS",
                 fontSize = 42.sp,
