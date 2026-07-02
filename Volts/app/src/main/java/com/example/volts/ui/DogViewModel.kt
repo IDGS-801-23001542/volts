@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import com.example.volts.data.FirestoreRepository
 
 class DogViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -113,7 +114,20 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun moveForward() = bluetooth.sendCommand("F")
+    fun moveForward() {
+        bluetooth.sendCommand("F")
+
+        FirestoreRepository.registrarAccion(
+            accion = "CAMINAR_ADELANTE",
+            resultado = "ENVIADO",
+            onSuccess = {
+                _message.value = "Movimiento enviado y registrado"
+            },
+            onError = {error ->
+                _message.value = "Movimiento enviado, pero no se guardó: ${error.message}"
+            }
+        )
+    }
     fun moveBack() = bluetooth.sendCommand("B")
     fun moveLeft() = bluetooth.sendCommand("L")
     fun moveRight() = bluetooth.sendCommand("R")
