@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "936355023148",
+    "project_id": "volts-238f5",
+    "storage_bucket": "volts-238f5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:936355023148:android:4c927915cd9629de9d4489",
+        "android_client_info": {
+          "package_name": "com.example.volts"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzxWpYuQK24dYkyzZXDd_Nf6OeBAJtUVc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
