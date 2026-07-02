@@ -396,6 +396,12 @@ fun DogHomeScreen(
                 dogDropArea = dogDropArea,
                 mouthDropArea = mouthDropArea,
 
+                onFoodDragStart = {
+                    temporaryDogAnimation = R.drawable.dog_mouth_open
+                },
+                onFoodDragCancel = {
+                    temporaryDogAnimation = null
+                },
                 onCookie = {
                     temporaryAnimationDurationMs = 3800L
                     playTemporaryAnimation(R.drawable.dog_eat, temporaryAnimationDurationMs) {
@@ -532,6 +538,9 @@ fun MainActionButtons(
     dogDropArea: Rect?,
     mouthDropArea: Rect?,
 
+    onFoodDragStart: () -> Unit,
+    onFoodDragCancel: () -> Unit,
+
     onCookie: () -> Unit,
     onBone: () -> Unit,
     onChili: () -> Unit,
@@ -561,6 +570,8 @@ fun MainActionButtons(
                     food = DragFood.COOKIE,
                     label = "Galleta",
                     mouthDropArea = mouthDropArea,
+                    onDragStart = onFoodDragStart,
+                    onDragCancel = onFoodDragCancel,
                     onDroppedOnMouth = {
                         onCookie()
                         openedMenu = null
@@ -571,6 +582,8 @@ fun MainActionButtons(
                     food = DragFood.BONE,
                     label = "Hueso",
                     mouthDropArea = mouthDropArea,
+                    onDragStart = onFoodDragStart,
+                    onDragCancel = onFoodDragCancel,
                     onDroppedOnMouth = {
                         onBone()
                         openedMenu = null
@@ -581,6 +594,8 @@ fun MainActionButtons(
                     food = DragFood.CHILI,
                     label = "Chile",
                     mouthDropArea = mouthDropArea,
+                    onDragStart = onFoodDragStart,
+                    onDragCancel = onFoodDragCancel,
                     onDroppedOnMouth = {
                         onChili()
                         openedMenu = null
@@ -755,6 +770,8 @@ fun DraggableFoodButton(
     food: DragFood,
     label: String,
     mouthDropArea: Rect?,
+    onDragStart: () -> Unit,
+    onDragCancel: () -> Unit,
     onDroppedOnMouth: () -> Unit
 ) {
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -780,6 +797,9 @@ fun DraggableFoodButton(
                 }
                 .pointerInput(food) {
                     detectDragGestures(
+                        onDragStart = {
+                            onDragStart()
+                        },
                         onDrag = { change, dragAmount ->
                             change.consume()
                             offset += dragAmount
@@ -788,17 +808,21 @@ fun DraggableFoodButton(
                             val currentBounds = itemBounds
                             val itemCenter = currentBounds?.center
 
-                            if (
+                            val droppedOnMouth =
                                 mouthDropArea != null &&
-                                itemCenter != null &&
-                                mouthDropArea.contains(itemCenter)
-                            ) {
+                                        itemCenter != null &&
+                                        mouthDropArea.contains(itemCenter)
+
+                            if (droppedOnMouth) {
                                 onDroppedOnMouth()
+                            } else {
+                                onDragCancel()
                             }
 
                             offset = Offset.Zero
                         },
                         onDragCancel = {
+                            onDragCancel()
                             offset = Offset.Zero
                         }
                     )
