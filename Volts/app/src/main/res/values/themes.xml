@@ -2,4 +2,14 @@
 <resources>
 
     <style name="Theme.Volts" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.Volts.Splash" parent="Theme.SplashScreen">
+
+        <item name="windowSplashScreenBackground">@android:color/white</item>
+
+        <item name="windowSplashScreenAnimatedIcon">@drawable/logo_volts</item>
+
+        <item name="postSplashScreenTheme">@style/Theme.Volts</item>
+
+    </style>
 </resources>

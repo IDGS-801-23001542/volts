@@ -1,77 +1,48 @@
 package com.example.volts
 
 import android.Manifest
-import android.media.SoundPool
-import android.os.Build
 import android.os.Bundle
-import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.ImageLoader
+import com.example.volts.ui.DogViewModel
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.volts.data.DogEntity
 import coil3.compose.AsyncImage
-import coil3.gif.GifDecoder
 import coil3.request.ImageRequest
 import coil3.request.crossfade
-import com.example.volts.data.DogEntity
-import com.example.volts.ui.BluetoothConnectionState
-import com.example.volts.ui.DogViewModel
+import coil3.ImageLoader
+import coil3.gif.GifDecoder
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.statusBarsPadding
 import kotlinx.coroutines.delay
+import android.media.SoundPool
+import androidx.compose.runtime.DisposableEffect
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 
 enum class ActionMenu {
@@ -110,33 +81,22 @@ class MainActivity : ComponentActivity() {
     private val viewModel: DogViewModel by viewModels()
 
     private val permissionLauncher =
-        registerForActivityResult(
-            ActivityResultContracts.RequestMultiplePermissions()
-        ) {
-            // El DogViewModel/BluetoothController reportará el error
-            // si el usuario no concedió los permisos necesarios.
-        }
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        requestBluetoothPermissionsIfNeeded()
+        permissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_SCAN
+            )
+        )
 
         setContent {
             MaterialTheme {
                 VoltsApp(viewModel)
             }
-        }
-    }
-
-    private fun requestBluetoothPermissionsIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            permissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.BLUETOOTH_CONNECT,
-                    Manifest.permission.BLUETOOTH_SCAN
-                )
-            )
         }
     }
 }
@@ -146,70 +106,32 @@ fun VoltsApp(viewModel: DogViewModel) {
     val dog by viewModel.dog.collectAsState()
     val message by viewModel.message.collectAsState()
 
-    /*
-     * CONTRATO DE INTEGRACIÓN CON PERSONA 2:
-     *
-     * DogViewModel debe exponer:
-     *
-     * val bluetoothState: StateFlow<BluetoothConnectionState>
-     *
-     * y BluetoothConnectionState debe contener:
-     *
-     * DISCONNECTED, CONNECTING, CONNECTED, ERROR
-     */
-    val bluetoothState by viewModel.bluetoothState.collectAsState()
-
     if (dog == null) {
         CreateDogScreen(
             message = message,
-            onCreateDog = { name ->
-                viewModel.createDog(name)
-            }
+            onCreateDog = { name -> viewModel.createDog(name) }
         )
     } else {
         DogHomeScreen(
             dog = dog!!,
             message = message,
-            bluetoothState = bluetoothState,
-            onConnectBluetooth = {
-                viewModel.connectBluetooth()
-            },
-            onCookie = {
-                viewModel.feedCookie()
-            },
-            onBone = {
-                viewModel.feedBone()
-            },
-            onChili = {
-                viewModel.feedChili()
-            },
-            onBall = {
-                viewModel.playBall()
-            },
-            onStick = {
-                viewModel.playStick()
-            },
-            onPet = {
-                viewModel.petDog()
-            },
-            onRest = {
-                viewModel.toggleSleep()
-            },
-            onMoveForward = {
-                viewModel.moveForward()
-            },
-            onMoveBack = {
-                viewModel.moveBack()
-            },
-            onMoveLeft = {
-                viewModel.moveLeft()
-            },
-            onMoveRight = {
-                viewModel.moveRight()
-            },
-            onStop = {
-                viewModel.stop()
-            }
+            onConnectBluetooth = { viewModel.connectBluetooth() },
+
+            onCookie = { viewModel.feedCookie() },
+            onBone = { viewModel.feedBone() },
+            onChili = { viewModel.feedChili() },
+
+            onBall = { viewModel.playBall() },
+            onStick = { viewModel.playStick() },
+
+            onPet = { viewModel.petDog() },
+            onRest = { viewModel.toggleSleep() },
+
+            onMoveForward = { viewModel.moveForward() },
+            onMoveBack = { viewModel.moveBack() },
+            onMoveLeft = { viewModel.moveLeft() },
+            onMoveRight = { viewModel.moveRight() },
+            onStop = { viewModel.stop() }
         )
     }
 }
@@ -219,17 +141,13 @@ fun CreateDogScreen(
     message: String,
     onCreateDog: (String) -> Unit
 ) {
-    var name by remember {
-        mutableStateOf("")
-    }
+    var name by remember { mutableStateOf("") }
 
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
         Image(
-            painter = painterResource(
-                id = R.drawable.background_day
-            ),
+            painter = painterResource(id = R.drawable.background_day),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -249,9 +167,7 @@ fun CreateDogScreen(
                 color = Color.White
             )
 
-            Spacer(
-                modifier = Modifier.height(8.dp)
-            )
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = message,
@@ -259,9 +175,7 @@ fun CreateDogScreen(
                 color = Color.White
             )
 
-            Spacer(
-                modifier = Modifier.height(24.dp)
-            )
+            Spacer(modifier = Modifier.height(24.dp))
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -276,31 +190,21 @@ fun CreateDogScreen(
                         fontWeight = FontWeight.Bold
                     )
 
-                    Spacer(
-                        modifier = Modifier.height(16.dp)
-                    )
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     OutlinedTextField(
                         value = name,
-                        onValueChange = {
-                            name = it
-                        },
-                        label = {
-                            Text("Nombre de VOLTS")
-                        },
+                        onValueChange = { name = it },
+                        label = { Text("Nombre de VOLTS") },
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    Spacer(
-                        modifier = Modifier.height(16.dp)
-                    )
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
                         onClick = {
-                            val cleanName = name.trim()
-
-                            if (cleanName.isNotEmpty()) {
-                                onCreateDog(cleanName)
+                            if (name.trim().isNotEmpty()) {
+                                onCreateDog(name.trim())
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -317,43 +221,35 @@ fun CreateDogScreen(
 fun DogHomeScreen(
     dog: DogEntity,
     message: String,
-    bluetoothState: BluetoothConnectionState,
     onConnectBluetooth: () -> Unit,
+
     onCookie: () -> Unit,
     onBone: () -> Unit,
     onChili: () -> Unit,
+
     onBall: () -> Unit,
     onStick: () -> Unit,
+
     onPet: () -> Unit,
     onRest: () -> Unit,
+
     onMoveForward: () -> Unit,
     onMoveBack: () -> Unit,
     onMoveLeft: () -> Unit,
     onMoveRight: () -> Unit,
     onStop: () -> Unit
 ) {
-    var showBluetoothModal by remember {
-        mutableStateOf(false)
-    }
+    var showBluetoothModal by remember { mutableStateOf(false) }
 
-    var temporaryDogAnimation by remember {
-        mutableStateOf<Int?>(null)
-    }
+    var temporaryDogAnimation by remember { mutableStateOf<Int?>(null) }
 
-    var temporaryAnimationDurationMs by remember {
-        mutableStateOf(3000L)
-    }
+    var temporaryAnimationDurationMs by remember { mutableStateOf(3000L) }
 
-    var dogDropArea by remember {
-        mutableStateOf<Rect?>(null)
-    }
+    var dogDropArea by remember { mutableStateOf<Rect?>(null) }
 
-    var mouthDropArea by remember {
-        mutableStateOf<Rect?>(null)
-    }
+    var mouthDropArea by remember { mutableStateOf<Rect?>(null) }
 
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
 
     val soundPool = remember {
         SoundPool.Builder()
@@ -362,11 +258,7 @@ fun DogHomeScreen(
     }
 
     val barkSoundId = remember {
-        soundPool.load(
-            context,
-            R.raw.dog_bark,
-            1
-        )
+        soundPool.load(context, R.raw.dog_bark, 1)
     }
 
     DisposableEffect(Unit) {
@@ -386,42 +278,31 @@ fun DogHomeScreen(
         )
     }
 
-    fun playTemporaryAnimation(
-        animationRes: Int,
-        durationMs: Long,
-        action: () -> Unit
-    ) {
+    fun playTemporaryAnimation(animationRes: Int, durationMs: Long, action: () -> Unit) {
         action()
-        temporaryAnimationDurationMs = durationMs
         temporaryDogAnimation = animationRes
     }
 
     fun handleToyDrop(toy: DragToy) {
-        val duration = 7000L
+        temporaryAnimationDurationMs = 7000L
 
-        playTemporaryAnimation(
-            animationRes = R.drawable.dog_play,
-            durationMs = duration
-        ) {
+        playTemporaryAnimation(R.drawable.dog_play, temporaryAnimationDurationMs) {
             when (toy) {
                 DragToy.BALL -> onBall()
                 DragToy.STICK -> onStick()
             }
         }
 
-        coroutineScope.launch {
-            delay(6208L)
+        kotlinx.coroutines.GlobalScope.launch {
+            delay(6208)
             playBark()
         }
     }
 
     fun handleFoodDrop(food: DragFood) {
-        val duration = 3800L
+        temporaryAnimationDurationMs = 3800L
 
-        playTemporaryAnimation(
-            animationRes = R.drawable.dog_eat,
-            durationMs = duration
-        ) {
+        playTemporaryAnimation(R.drawable.dog_eat, temporaryAnimationDurationMs) {
             when (food) {
                 DragFood.COOKIE -> onCookie()
                 DragFood.BONE -> onBone()
@@ -430,10 +311,7 @@ fun DogHomeScreen(
         }
     }
 
-    LaunchedEffect(
-        temporaryDogAnimation,
-        temporaryAnimationDurationMs
-    ) {
+    LaunchedEffect(temporaryDogAnimation) {
         if (temporaryDogAnimation != null) {
             delay(temporaryAnimationDurationMs)
             temporaryDogAnimation = null
@@ -442,33 +320,24 @@ fun DogHomeScreen(
 
     val baseDogAnimation = when {
         dog.sleeping -> R.drawable.dog_sleep
-
-        dog.health < 50 ||
-                dog.hunger < 50 -> R.drawable.dog_sick
-
-        dog.happiness < 50 ||
-                dog.energy < 50 -> R.drawable.dog_sad
-
+        dog.health < 50 || dog.hunger < 50 -> R.drawable.dog_sick
+        dog.happiness < 50 || dog.energy < 50 -> R.drawable.dog_sad
         else -> R.drawable.dog_idle
     }
 
-    val currentDogAnimation =
-        temporaryDogAnimation ?: baseDogAnimation
+    val currentDogAnimation = temporaryDogAnimation ?: baseDogAnimation
 
-    val currentBackground =
-        if (dog.sleeping) {
-            R.drawable.background_night
-        } else {
-            R.drawable.background_day
-        }
+    val currentBackground = if (dog.sleeping) {
+        R.drawable.background_night
+    } else {
+        R.drawable.background_day
+    }
 
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
         Image(
-            painter = painterResource(
-                id = currentBackground
-            ),
+            painter = painterResource(id = currentBackground),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -478,17 +347,12 @@ fun DogHomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(
-                    horizontal = 16.dp,
-                    vertical = 10.dp
-                ),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             StatusBar(dog)
 
-            Spacer(
-                modifier = Modifier.height(16.dp)
-            )
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text(
                 text = message,
@@ -497,9 +361,7 @@ fun DogHomeScreen(
                 color = Color.White
             )
 
-            Spacer(
-                modifier = Modifier.height(170.dp)
-            )
+            Spacer(modifier = Modifier.height(170.dp))
 
             Box(
                 modifier = Modifier
@@ -514,76 +376,66 @@ fun DogHomeScreen(
                         .aspectRatio(1f)
                         .align(Alignment.BottomCenter)
                         .onGloballyPositioned { coordinates ->
-                            val dogBounds =
-                                coordinates.boundsInRoot()
-
+                            val dogBounds = coordinates.boundsInRoot()
                             dogDropArea = dogBounds
 
                             mouthDropArea = Rect(
-                                left =
-                                    dogBounds.left +
-                                            dogBounds.width * 0.38f,
-                                top =
-                                    dogBounds.top +
-                                            dogBounds.height * 0.50f,
-                                right =
-                                    dogBounds.left +
-                                            dogBounds.width * 0.62f,
-                                bottom =
-                                    dogBounds.top +
-                                            dogBounds.height * 0.70f
+                                left = dogBounds.left + dogBounds.width * 0.38f,
+                                top = dogBounds.top + dogBounds.height * 0.50f,
+                                right = dogBounds.left + dogBounds.width * 0.62f,
+                                bottom = dogBounds.top + dogBounds.height * 0.70f
                             )
                         }
                 )
             }
 
-            Spacer(
-                modifier = Modifier.height(28.dp)
-            )
+            Spacer(modifier = Modifier.height(28.dp))
 
             MainActionButtons(
+
                 dogDropArea = dogDropArea,
                 mouthDropArea = mouthDropArea,
+
+                onFoodDragStart = {
+                    temporaryDogAnimation = R.drawable.dog_mouth_open
+                },
+                onFoodDragCancel = {
+                    temporaryDogAnimation = null
+                },
                 onCookie = {
-                    playTemporaryAnimation(
-                        animationRes = R.drawable.dog_eat,
-                        durationMs = 3800L
-                    ) {
+                    temporaryAnimationDurationMs = 3800L
+                    playTemporaryAnimation(R.drawable.dog_eat, temporaryAnimationDurationMs) {
                         onCookie()
                     }
                 },
                 onBone = {
-                    playTemporaryAnimation(
-                        animationRes = R.drawable.dog_eat,
-                        durationMs = 3800L
-                    ) {
+                    temporaryAnimationDurationMs = 3800L
+                    playTemporaryAnimation(R.drawable.dog_eat, temporaryAnimationDurationMs) {
                         onBone()
                     }
                 },
                 onChili = {
-                    playTemporaryAnimation(
-                        animationRes = R.drawable.dog_eat,
-                        durationMs = 3800L
-                    ) {
+                    temporaryAnimationDurationMs = 3800L
+                    playTemporaryAnimation(R.drawable.dog_eat, temporaryAnimationDurationMs) {
                         onChili()
                     }
                 },
+
                 onBall = {
                     handleToyDrop(DragToy.BALL)
                 },
                 onStick = {
                     handleToyDrop(DragToy.STICK)
                 },
+
                 onPet = {
-                    playTemporaryAnimation(
-                        animationRes = R.drawable.dog_happy,
-                        durationMs = 2500L
-                    ) {
+                    temporaryAnimationDurationMs = 2500L
+                    playTemporaryAnimation(R.drawable.dog_happy, temporaryAnimationDurationMs) {
                         onPet()
                     }
 
-                    coroutineScope.launch {
-                        delay(1250L)
+                    kotlinx.coroutines.GlobalScope.launch {
+                        delay(1250)
                         playBark()
                     }
                 },
@@ -595,26 +447,17 @@ fun DogHomeScreen(
         }
 
         BluetoothFloatingButton(
-            connectionState = bluetoothState,
-            onClick = {
-                showBluetoothModal = true
-            },
+            onClick = { showBluetoothModal = true },
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .statusBarsPadding()
-                .padding(
-                    top = 96.dp,
-                    end = 18.dp
-                )
+                .padding(top = 96.dp, end = 18.dp)
         )
 
         if (showBluetoothModal) {
             BluetoothControlModal(
                 message = message,
-                connectionState = bluetoothState,
-                onClose = {
-                    showBluetoothModal = false
-                },
+                onClose = { showBluetoothModal = false },
                 onConnectBluetooth = onConnectBluetooth,
                 onMoveForward = onMoveForward,
                 onMoveBack = onMoveBack,
@@ -632,45 +475,19 @@ fun StatusBar(dog: DogEntity) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
-            .background(
-                Color.White.copy(alpha = 0.72f)
-            )
-            .padding(
-                horizontal = 6.dp,
-                vertical = 8.dp
-            )
+            .background(Color.White.copy(alpha = 0.72f))
+            .padding(horizontal = 6.dp, vertical = 8.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement =
-                Arrangement.SpaceEvenly,
-            verticalAlignment =
-                Alignment.Top
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Top
         ) {
-            StatusItem(
-                R.drawable.icon_hunger,
-                dog.hunger
-            )
-
-            StatusItem(
-                R.drawable.icon_happiness,
-                dog.happiness
-            )
-
-            StatusItem(
-                R.drawable.icon_energy,
-                dog.energy
-            )
-
-            StatusItem(
-                R.drawable.icon_health,
-                dog.health
-            )
-
-            StatusItem(
-                R.drawable.icon_battery,
-                dog.battery
-            )
+            StatusItem(R.drawable.icon_hunger, dog.hunger)
+            StatusItem(R.drawable.icon_happiness, dog.happiness)
+            StatusItem(R.drawable.icon_energy, dog.energy)
+            StatusItem(R.drawable.icon_health, dog.health)
+            StatusItem(R.drawable.icon_battery, dog.battery)
         }
     }
 }
@@ -688,8 +505,7 @@ fun StatusItem(
     }
 
     Column(
-        horizontalAlignment =
-            Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(58.dp)
     ) {
         Box(
@@ -700,17 +516,13 @@ fun StatusItem(
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(
-                    id = iconRes
-                ),
+                painter = painterResource(id = iconRes),
                 contentDescription = null,
                 modifier = Modifier.size(27.dp)
             )
         }
 
-        Spacer(
-            modifier = Modifier.height(3.dp)
-        )
+        Spacer(modifier = Modifier.height(3.dp))
 
         Text(
             text = "$value%",
@@ -725,22 +537,25 @@ fun StatusItem(
 fun MainActionButtons(
     dogDropArea: Rect?,
     mouthDropArea: Rect?,
+
+    onFoodDragStart: () -> Unit,
+    onFoodDragCancel: () -> Unit,
+
     onCookie: () -> Unit,
     onBone: () -> Unit,
     onChili: () -> Unit,
+
     onBall: () -> Unit,
     onStick: () -> Unit,
+
     onPet: () -> Unit,
     onRest: () -> Unit
 ) {
-    var openedMenu by remember {
-        mutableStateOf<ActionMenu?>(null)
-    }
+    var openedMenu by remember { mutableStateOf<ActionMenu?>(null) }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement =
-            Arrangement.SpaceEvenly,
+        horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.Top
     ) {
         when (openedMenu) {
@@ -748,9 +563,7 @@ fun MainActionButtons(
                 ActionButton(
                     iconRes = R.drawable.btn_food,
                     label = "Comer",
-                    onClick = {
-                        openedMenu = null
-                    }
+                    onClick = { openedMenu = null }
                 )
 
                 DraggableFoodButton(
@@ -788,17 +601,13 @@ fun MainActionButtons(
                 ActionButton(
                     iconRes = R.drawable.btn_food,
                     label = "Comer",
-                    onClick = {
-                        openedMenu = ActionMenu.FOOD
-                    }
+                    onClick = { openedMenu = ActionMenu.FOOD }
                 )
 
                 ActionButton(
                     iconRes = R.drawable.btn_play,
                     label = "Jugar",
-                    onClick = {
-                        openedMenu = null
-                    }
+                    onClick = { openedMenu = null }
                 )
 
                 DraggableToyButton(
@@ -826,30 +635,17 @@ fun MainActionButtons(
                 ActionButton(
                     iconRes = R.drawable.btn_food,
                     label = "Comer",
-                    onClick = {
-                        openedMenu = ActionMenu.FOOD
-                    }
+                    onClick = { openedMenu = ActionMenu.FOOD }
                 )
 
                 ActionButton(
                     iconRes = R.drawable.btn_play,
                     label = "Jugar",
-                    onClick = {
-                        openedMenu = ActionMenu.PLAY
-                    }
+                    onClick = { openedMenu = ActionMenu.PLAY }
                 )
 
-                ActionButton(
-                    iconRes = R.drawable.btn_pet,
-                    label = "Acariciar",
-                    onClick = onPet
-                )
-
-                ActionButton(
-                    iconRes = R.drawable.btn_sleep,
-                    label = "Dormir",
-                    onClick = onRest
-                )
+                ActionButton(R.drawable.btn_pet, "Acariciar", onPet)
+                ActionButton(R.drawable.btn_sleep, "Dormir", onRest)
             }
         }
     }
@@ -862,8 +658,7 @@ fun ActionButton(
     onClick: () -> Unit
 ) {
     Column(
-        horizontalAlignment =
-            Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(82.dp)
     ) {
         IconButton(
@@ -871,22 +666,16 @@ fun ActionButton(
             modifier = Modifier
                 .size(70.dp)
                 .clip(CircleShape)
-                .background(
-                    Color.White.copy(alpha = 0.90f)
-                )
+                .background(Color.White.copy(alpha = 0.90f))
         ) {
             Image(
-                painter = painterResource(
-                    id = iconRes
-                ),
+                painter = painterResource(id = iconRes),
                 contentDescription = label,
                 modifier = Modifier.size(45.dp)
             )
         }
 
-        Spacer(
-            modifier = Modifier.height(5.dp)
-        )
+        Spacer(modifier = Modifier.height(5.dp))
 
         Text(
             text = label,
@@ -904,17 +693,11 @@ fun DraggableToyButton(
     dogDropArea: Rect?,
     onDroppedOnDog: () -> Unit
 ) {
-    var offset by remember {
-        mutableStateOf(Offset.Zero)
-    }
-
-    var itemBounds by remember {
-        mutableStateOf<Rect?>(null)
-    }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var itemBounds by remember { mutableStateOf<Rect?>(null) }
 
     Column(
-        horizontalAlignment =
-            Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(82.dp)
     ) {
         Box(
@@ -927,12 +710,9 @@ fun DraggableToyButton(
                 }
                 .size(70.dp)
                 .clip(CircleShape)
-                .background(
-                    Color.White.copy(alpha = 0.90f)
-                )
+                .background(Color.White.copy(alpha = 0.90f))
                 .onGloballyPositioned { coordinates ->
-                    itemBounds =
-                        coordinates.boundsInRoot()
+                    itemBounds = coordinates.boundsInRoot()
                 }
                 .pointerInput(toy) {
                     detectDragGestures(
@@ -941,8 +721,8 @@ fun DraggableToyButton(
                             offset += dragAmount
                         },
                         onDragEnd = {
-                            val itemCenter =
-                                itemBounds?.center
+                            val currentBounds = itemBounds
+                            val itemCenter = currentBounds?.center
 
                             if (
                                 dogDropArea != null &&
@@ -962,17 +742,13 @@ fun DraggableToyButton(
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(
-                    id = toyImage(toy)
-                ),
+                painter = painterResource(id = toyImage(toy)),
                 contentDescription = label,
                 modifier = Modifier.size(45.dp)
             )
         }
 
-        Spacer(
-            modifier = Modifier.height(5.dp)
-        )
+        Spacer(modifier = Modifier.height(5.dp))
 
         Text(
             text = label,
@@ -990,17 +766,11 @@ fun DraggableFoodButton(
     mouthDropArea: Rect?,
     onDroppedOnMouth: () -> Unit
 ) {
-    var offset by remember {
-        mutableStateOf(Offset.Zero)
-    }
-
-    var itemBounds by remember {
-        mutableStateOf<Rect?>(null)
-    }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var itemBounds by remember { mutableStateOf<Rect?>(null) }
 
     Column(
-        horizontalAlignment =
-            Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(82.dp)
     ) {
         Box(
@@ -1013,12 +783,9 @@ fun DraggableFoodButton(
                 }
                 .size(70.dp)
                 .clip(CircleShape)
-                .background(
-                    Color.White.copy(alpha = 0.90f)
-                )
+                .background(Color.White.copy(alpha = 0.90f))
                 .onGloballyPositioned { coordinates ->
-                    itemBounds =
-                        coordinates.boundsInRoot()
+                    itemBounds = coordinates.boundsInRoot()
                 }
                 .pointerInput(food) {
                     detectDragGestures(
@@ -1027,8 +794,8 @@ fun DraggableFoodButton(
                             offset += dragAmount
                         },
                         onDragEnd = {
-                            val itemCenter =
-                                itemBounds?.center
+                            val currentBounds = itemBounds
+                            val itemCenter = currentBounds?.center
 
                             if (
                                 mouthDropArea != null &&
@@ -1048,17 +815,13 @@ fun DraggableFoodButton(
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(
-                    id = foodImage(food)
-                ),
+                painter = painterResource(id = foodImage(food)),
                 contentDescription = label,
                 modifier = Modifier.size(45.dp)
             )
         }
 
-        Spacer(
-            modifier = Modifier.height(5.dp)
-        )
+        Spacer(modifier = Modifier.height(5.dp))
 
         Text(
             text = label,
@@ -1071,7 +834,6 @@ fun DraggableFoodButton(
 
 @Composable
 fun MovementControls(
-    enabled: Boolean,
     onMoveForward: () -> Unit,
     onMoveBack: () -> Unit,
     onMoveLeft: () -> Unit,
@@ -1079,40 +841,16 @@ fun MovementControls(
     onStop: () -> Unit
 ) {
     Column(
-        horizontalAlignment =
-            Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        MovementButton(
-            text = "↑",
-            enabled = enabled,
-            onDown = onMoveForward,
-            onUp = onStop
-        )
+        MovementButton("↑", onMoveForward, onStop)
 
         Row(
-            horizontalArrangement =
-                Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            MovementButton(
-                text = "←",
-                enabled = enabled,
-                onDown = onMoveLeft,
-                onUp = onStop
-            )
-
-            MovementButton(
-                text = "↓",
-                enabled = enabled,
-                onDown = onMoveBack,
-                onUp = onStop
-            )
-
-            MovementButton(
-                text = "→",
-                enabled = enabled,
-                onDown = onMoveRight,
-                onUp = onStop
-            )
+            MovementButton("←", onMoveLeft, onStop)
+            MovementButton("↓", onMoveBack, onStop)
+            MovementButton("→", onMoveRight, onStop)
         }
     }
 }
@@ -1120,42 +858,23 @@ fun MovementControls(
 @Composable
 fun MovementButton(
     text: String,
-    enabled: Boolean,
     onDown: () -> Unit,
     onUp: () -> Unit
 ) {
-    var pressed by remember {
-        mutableStateOf(false)
-    }
-
     Button(
         onClick = {},
-        enabled = enabled,
         modifier = Modifier
             .size(58.dp)
             .pointerInteropFilter { event ->
-                if (!enabled) {
-                    pressed = false
-                    return@pointerInteropFilter false
-                }
-
                 when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        if (!pressed) {
-                            pressed = true
-                            onDown()
-                        }
-
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        onDown()
                         true
                     }
 
-                    MotionEvent.ACTION_UP,
-                    MotionEvent.ACTION_CANCEL -> {
-                        if (pressed) {
-                            pressed = false
-                            onUp()
-                        }
-
+                    android.view.MotionEvent.ACTION_UP,
+                    android.view.MotionEvent.ACTION_CANCEL -> {
+                        onUp()
                         true
                     }
 
@@ -1164,9 +883,7 @@ fun MovementButton(
             },
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFF6F4FB5),
-            disabledContainerColor =
-                Color(0xFF8E8E93)
+            containerColor = Color(0xFF6F4FB5)
         ),
         contentPadding = PaddingValues(0.dp)
     ) {
@@ -1207,50 +924,21 @@ fun AnimatedDogImage(
 
 @Composable
 fun BluetoothFloatingButton(
-    connectionState: BluetoothConnectionState,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val backgroundColor =
-        when (connectionState) {
-            BluetoothConnectionState.CONNECTED ->
-                Color(0xFF35C85A)
-
-            BluetoothConnectionState.CONNECTING ->
-                Color(0xFFFFD447)
-
-            BluetoothConnectionState.ERROR ->
-                Color(0xFFE53935)
-
-            BluetoothConnectionState.DISCONNECTED ->
-                Color.White.copy(alpha = 0.90f)
-        }
-
-    val textColor =
-        when (connectionState) {
-            BluetoothConnectionState.DISCONNECTED ->
-                Color(0xFF6F4FB5)
-
-            BluetoothConnectionState.CONNECTING ->
-                Color.Black
-
-            BluetoothConnectionState.CONNECTED,
-            BluetoothConnectionState.ERROR ->
-                Color.White
-        }
-
     IconButton(
         onClick = onClick,
         modifier = modifier
             .size(54.dp)
             .clip(CircleShape)
-            .background(backgroundColor)
+            .background(Color.White.copy(alpha = 0.90f))
     ) {
         Text(
             text = "BT",
             fontSize = 16.sp,
             fontWeight = FontWeight.ExtraBold,
-            color = textColor
+            color = Color(0xFF6F4FB5)
         )
     }
 }
@@ -1258,7 +946,6 @@ fun BluetoothFloatingButton(
 @Composable
 fun BluetoothControlModal(
     message: String,
-    connectionState: BluetoothConnectionState,
     onClose: () -> Unit,
     onConnectBluetooth: () -> Unit,
     onMoveForward: () -> Unit,
@@ -1267,71 +954,20 @@ fun BluetoothControlModal(
     onMoveRight: () -> Unit,
     onStop: () -> Unit
 ) {
-    val connected =
-        connectionState ==
-                BluetoothConnectionState.CONNECTED
-
-    val connectionLabel =
-        when (connectionState) {
-            BluetoothConnectionState.DISCONNECTED ->
-                "Desconectado"
-
-            BluetoothConnectionState.CONNECTING ->
-                "Conectando..."
-
-            BluetoothConnectionState.CONNECTED ->
-                "Conectado a VOLTS"
-
-            BluetoothConnectionState.ERROR ->
-                "Error de conexión"
-        }
-
-    val connectionColor =
-        when (connectionState) {
-            BluetoothConnectionState.CONNECTED ->
-                Color(0xFF178A36)
-
-            BluetoothConnectionState.CONNECTING ->
-                Color(0xFF9A7200)
-
-            BluetoothConnectionState.ERROR ->
-                Color(0xFFC62828)
-
-            BluetoothConnectionState.DISCONNECTED ->
-                Color(0xFF616161)
-        }
-
-    val connectButtonText =
-        when (connectionState) {
-            BluetoothConnectionState.CONNECTING ->
-                "Conectando..."
-
-            BluetoothConnectionState.CONNECTED ->
-                "VOLTS conectado"
-
-            BluetoothConnectionState.ERROR ->
-                "Reintentar conexión"
-
-            BluetoothConnectionState.DISCONNECTED ->
-                "Conectar a VOLTS"
-        }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Color.Black.copy(alpha = 0.72f)
-            ),
+            .background(Color.Black.copy(alpha = 0.72f)),
         contentAlignment = Alignment.Center
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth(0.90f),
+            modifier = Modifier
+                .fillMaxWidth(0.90f),
             shape = RoundedCornerShape(28.dp)
         ) {
             Column(
                 modifier = Modifier.padding(22.dp),
-                horizontalAlignment =
-                    Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = "Control Bluetooth",
@@ -1339,20 +975,7 @@ fun BluetoothControlModal(
                     fontWeight = FontWeight.ExtraBold
                 )
 
-                Spacer(
-                    modifier = Modifier.height(10.dp)
-                )
-
-                Text(
-                    text = connectionLabel,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = connectionColor
-                )
-
-                Spacer(
-                    modifier = Modifier.height(6.dp)
-                )
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = message,
@@ -1360,35 +983,25 @@ fun BluetoothControlModal(
                     fontWeight = FontWeight.SemiBold
                 )
 
-                Spacer(
-                    modifier = Modifier.height(20.dp)
-                )
+                Spacer(modifier = Modifier.height(20.dp))
 
                 Button(
                     onClick = onConnectBluetooth,
-                    enabled =
-                        connectionState !=
-                                BluetoothConnectionState.CONNECTING &&
-                                connectionState !=
-                                BluetoothConnectionState.CONNECTED,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(54.dp),
                     shape = RoundedCornerShape(26.dp)
                 ) {
                     Text(
-                        text = connectButtonText,
+                        text = "Conectar a VOLTS",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                Spacer(
-                    modifier = Modifier.height(26.dp)
-                )
+                Spacer(modifier = Modifier.height(26.dp))
 
                 MovementControls(
-                    enabled = connected,
                     onMoveForward = onMoveForward,
                     onMoveBack = onMoveBack,
                     onMoveLeft = onMoveLeft,
@@ -1396,23 +1009,7 @@ fun BluetoothControlModal(
                     onStop = onStop
                 )
 
-                if (!connected) {
-                    Spacer(
-                        modifier = Modifier.height(12.dp)
-                    )
-
-                    Text(
-                        text =
-                            "Conecta VOLTS para habilitar " +
-                                    "los controles de movimiento.",
-                        fontSize = 13.sp,
-                        color = Color(0xFF616161)
-                    )
-                }
-
-                Spacer(
-                    modifier = Modifier.height(26.dp)
-                )
+                Spacer(modifier = Modifier.height(26.dp))
 
                 OutlinedButton(
                     onClick = onClose,
