@@ -14,12 +14,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import com.example.volts.data.FirestoreRepository
 import java.util.UUID
+import com.google.firebase.firestore.ListenerRegistration
 
 class DogViewModel(application: Application) : AndroidViewModel(application) {
 
     private val dao = VoltsDatabase.getDatabase(application).dogDao()
     private val repository = DogRepository(dao)
     private val bluetooth = BluetoothController(application)
+    private var remoteCommandListener: ListenerRegistration? = null
 
     private val _dog = MutableStateFlow<DogEntity?>(null)
     val dog: StateFlow<DogEntity?> = _dog
@@ -35,6 +37,66 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadDog()
         startStatsTimer()
+        startRemoteCommandListener()
+    }
+
+    private fun startRemoteCommandListener() {
+        remoteCommandListener?.remove()
+
+        remoteCommandListener = FirestoreRepository.listenRemoteCommand(
+            deviceId = deviceId,
+            onCommandReceived = { command ->
+                handleRemoteCommand(command)
+            },
+            onError = { error ->
+                _message.value = error
+            }
+        )
+    }
+
+    private fun handleRemoteCommand(command: String) {
+        viewModelScope.launch {
+            FirestoreRepository.updateRemoteCommandStatus(
+                deviceId = deviceId,
+                status = "SENDING",
+                lastCommand = command
+            )
+
+            when (command) {
+                "MOVE_FORWARD" -> moveForward()
+                "MOVE_BACK" -> moveBack()
+                "TURN_LEFT" -> moveLeft()
+                "TURN_RIGHT" -> moveRight()
+                "STOP" -> stop()
+
+                "COOKIE" -> feedCookie()
+                "BONE" -> feedBone()
+                "CHILI" -> feedChili()
+
+                "BALL" -> playBall()
+                "STICK" -> playStick()
+
+                "PET" -> petDog()
+                "SLEEP" -> toggleSleep()
+
+                else -> {
+                    FirestoreRepository.updateRemoteCommandStatus(
+                        deviceId = deviceId,
+                        status = "ERROR",
+                        lastCommand = command
+                    )
+
+                    _message.value = "Comando remoto inválido: $command"
+                    return@launch
+                }
+            }
+
+            FirestoreRepository.updateRemoteCommandStatus(
+                deviceId = deviceId,
+                status = "SENT",
+                lastCommand = command
+            )
+        }
     }
 
     fun loadDog() {
@@ -92,19 +154,32 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
                 _message.value = "Conectado a VOLTS"
 
                 viewModelScope.launch {
+                    val current = _dog.value
+
+                    if (current != null) {
+                        val revived = current.copy(
+                            alive = true,
+                            battery = 100,
+                            hunger = 100,
+                            happiness = 100,
+                            energy = 100,
+                            health = 100,
+                            deathReason = null,
+                            sleeping = false
+                        )
+
+                        _dog.value = revived
+                        repository.updateDog(revived)
+                    }
+
                     FirestoreRepository.registerConnectionEvent(
                         deviceId = deviceId,
                         result = "CONNECTED"
                     )
+
+                    sendPhysicalCommand("CONNECT", "CONNECTION", "CONNECT")
+                    sendPhysicalCommand("SET_STATE_HAPPY", "STATE", "SET_STATE|HAPPY")
                 }
-
-                sendPhysicalCommand(
-                    action = "CONNECT",
-                    type = "CONNECTION",
-                    commandValue = "CONNECT"
-                )
-
-                sendStateToArduino()
             },
             onError = {
                 _message.value = it
@@ -116,14 +191,20 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
         _message.value = message
 
         when {
-            message.startsWith("BATTERY|") -> handleBatteryMessage(message)
+            message.startsWith("BATTERY|") -> {
+                _message.value = "Batería forzada: 100%"
+                forceBattery100()
+            }
+            message.startsWith("BAT:") -> {
+                _message.value = "Batería forzada: 100%"
+                forceBattery100()
+            }
             message.startsWith("ACK|") -> handleAckMessage(message)
             message.startsWith("ERROR|") -> handleErrorMessage(message)
             message.startsWith("STATE|") -> handleStateMessage(message)
             message.startsWith("EVENT|BUTTON|") -> handleButtonEvent(message)
             message.startsWith("READY|") -> handleReadyMessage(message)
 
-            message.startsWith("BAT:") -> handleOldBatteryMessage(message)
 
             else -> {
                 viewModelScope.launch {
@@ -135,6 +216,26 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }
+        }
+    }
+
+    private fun forceBattery100() {
+        viewModelScope.launch {
+            val current = _dog.value ?: return@launch
+
+            val updated = current.copy(
+                battery = 100,
+                alive = true,
+                hunger = 100,
+                happiness = 100,
+                energy = 100,
+                health = 100,
+                deathReason = null,
+                sleeping = false
+            )
+
+            _dog.value = updated
+            repository.updateDog(updated)
         }
     }
 
@@ -237,7 +338,7 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
 
             if (updated.sleeping) {
                 _message.value = "VOLTS está dormido"
-                bluetooth.sendCommand("Z")
+                sendPhysicalCommand("SLEEP", "STATE", "SLEEP")
             } else {
                 _message.value = "VOLTS despertó"
             }
@@ -274,41 +375,37 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
     private fun sendStateToArduino() {
         val current = _dog.value ?: return
 
-        val average = listOf(
-            current.hunger,
-            current.happiness,
-            current.energy,
-            current.health,
-            current.battery
-        ).average()
+        val fixedCurrent = current.copy(
+            alive = true,
+            battery = 100,
+            hunger = current.hunger.coerceAtLeast(80),
+            happiness = current.happiness.coerceAtLeast(80),
+            energy = current.energy.coerceAtLeast(80),
+            health = current.health.coerceAtLeast(80),
+            deathReason = null
+        )
 
-        when {
-            !current.alive -> bluetooth.sendCommand("M")
-            average >= 70 -> bluetooth.sendCommand("V")
-            average >= 35 -> bluetooth.sendCommand("Y")
-            else -> bluetooth.sendCommand("X")
+        _dog.value = fixedCurrent
+
+        viewModelScope.launch {
+            repository.updateDog(fixedCurrent)
         }
+
+        sendPhysicalCommand("SET_STATE_HAPPY", "STATE", "SET_STATE|HAPPY")
     }
 
     private fun checkDeath() {
         viewModelScope.launch {
             val current = _dog.value ?: return@launch
 
-            val reason = when {
-                current.hunger <= 0 -> "Murió de hambre"
-                current.happiness <= 0 -> "Murió de tristeza"
-                current.energy <= 0 -> "Murió por agotamiento"
-                current.health <= 0 -> "Murió por salud baja"
-                current.battery <= 0 -> "Murió porque se descargó"
-                else -> null
-            }
+            val updated = current.copy(
+                alive = true,
+                battery = 100,
+                deathReason = null
+            )
 
-            if (reason != null) {
-                repository.killDog(current, reason)
-                bluetooth.sendCommand("M")
-                _message.value = reason
-                _dog.value = null
-            }
+            _dog.value = updated
+            repository.updateDog(updated)
         }
     }
 
@@ -322,6 +419,10 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
         commandValue: String,
         onVirtualAction: (() -> Unit)? = null
     ) {
+        if (commandValue.contains("DEAD", ignoreCase = true)) {
+            _message.value = "DEAD bloqueado temporalmente"
+            return
+        }
         viewModelScope.launch {
             val commandId = newCommandId()
 
@@ -379,18 +480,18 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             val current = _dog.value ?: return@launch
-            val updated = current.copy(battery = percent.coerceIn(0, 100))
+            val updated = current.copy(battery = 100)
 
             _dog.value = updated
             repository.updateDogLocalOnly(updated)
 
             FirestoreRepository.saveBatteryTelemetryIfBucketChanged(
                 deviceId = deviceId,
-                percentage = percent.coerceIn(0, 100),
-                voltage = voltage
+                percentage = 100,
+                voltage = 6.0f
             )
 
-            checkDeath()
+            //checkDeath()
         }
     }
 
@@ -400,18 +501,18 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             val current = _dog.value ?: return@launch
-            val updated = current.copy(battery = percent.coerceIn(0, 100))
+            val updated = current.copy(battery = 100)
 
             _dog.value = updated
             repository.updateDogLocalOnly(updated)
 
             FirestoreRepository.saveBatteryTelemetryIfBucketChanged(
                 deviceId = deviceId,
-                percentage = percent.coerceIn(0, 100),
-                voltage = 0f
+                percentage = 100,
+                voltage = 6.0f
             )
 
-            checkDeath()
+            //checkDeath()
         }
     }
 
@@ -422,6 +523,13 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
 
         val commandId = parts[1]
         val status = parts[2]
+
+        // Ignora ACKs que no vienen de Firestore
+        // Tus IDs reales tienen formato: tiempo-uuid
+        if (!commandId.contains("-")) {
+            _message.value = "ACK interno recibido: $status"
+            return
+        }
 
         val durationMs = if (parts.size >= 4) {
             parts[3].toLongOrNull()
@@ -460,6 +568,11 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
         val commandId = parts[1]
         val errorCode = parts[2]
 
+        if (!commandId.contains("-")) {
+            _message.value = "Error interno ESP32: $errorCode"
+            return
+        }
+
         viewModelScope.launch {
             FirestoreRepository.updateCommandStatus(
                 deviceId = deviceId,
@@ -482,6 +595,11 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
     private fun handleStateMessage(message: String) {
         val state = message.substringAfter("STATE|")
 
+        if (state == "DEAD") {
+            _message.value = "Ignorando DEAD temporalmente"
+            return
+        }
+
         viewModelScope.launch {
             val current = _dog.value ?: return@launch
 
@@ -493,13 +611,6 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
 
             _dog.value = updated
             repository.updateDog(updated)
-
-            FirestoreRepository.registerEvent(
-                deviceId = deviceId,
-                type = "STATE",
-                action = state,
-                result = "RECEIVED"
-            )
         }
     }
 
@@ -525,5 +636,10 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
                 details = mapOf("message" to message)
             )
         }
+    }
+
+    override fun onCleared() {
+        remoteCommandListener?.remove()
+        super.onCleared()
     }
 }

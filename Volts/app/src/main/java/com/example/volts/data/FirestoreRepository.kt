@@ -3,6 +3,8 @@ package com.example.volts.data
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.SetOptions
 
 object FirestoreRepository {
 
@@ -82,7 +84,9 @@ object FirestoreRepository {
         durationMs: Long? = null
     ) {
         val data = mutableMapOf<String, Any?>(
-            "status" to status
+            "commandId" to commandId,
+            "status" to status,
+            "updatedAt" to FieldValue.serverTimestamp()
         )
 
         when (status) {
@@ -99,7 +103,7 @@ object FirestoreRepository {
         dogRef(deviceId)
             .collection("commands")
             .document(commandId)
-            .update(data)
+            .set(data, SetOptions.merge())
             .await()
     }
 
@@ -174,5 +178,51 @@ object FirestoreRepository {
             percentage >= 1 -> 20
             else -> 0
         }
+    }
+
+    fun listenRemoteCommand(
+        deviceId: String,
+        onCommandReceived: (command: String) -> Unit,
+        onError: (String) -> Unit
+    ): ListenerRegistration {
+        return dogRef(deviceId)
+            .collection("remote")
+            .document("current")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError(error.message ?: "Error escuchando comando remoto")
+                    return@addSnapshotListener
+                }
+
+                if (snapshot == null || !snapshot.exists()) return@addSnapshotListener
+
+                val command = snapshot.getString("command") ?: return@addSnapshotListener
+                val status = snapshot.getString("status") ?: return@addSnapshotListener
+
+                if (status == "PENDING") {
+                    onCommandReceived(command)
+                }
+            }
+    }
+
+    suspend fun updateRemoteCommandStatus(
+        deviceId: String,
+        status: String,
+        lastCommand: String? = null
+    ) {
+        val data = mutableMapOf<String, Any>(
+            "status" to status,
+            "updatedAt" to FieldValue.serverTimestamp()
+        )
+
+        if (lastCommand != null) {
+            data["lastCommand"] = lastCommand
+        }
+
+        dogRef(deviceId)
+            .collection("remote")
+            .document("current")
+            .set(data, SetOptions.merge())
+            .await()
     }
 }

@@ -394,6 +394,8 @@ class BluetoothController(
             postToMain {
                 onConnectedCallback?.invoke()
             }
+
+            return
         }
 
         if (
@@ -410,6 +412,8 @@ class BluetoothController(
             closeCurrentConnection(
                 notifyDisconnected = true
             )
+
+            return
         }
 
         postToMain {
