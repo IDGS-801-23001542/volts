@@ -1,15 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Volts" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Volts"
+        parent="Theme.Material3.DayNight.NoActionBar">
 
-    <style name="Theme.Volts.Splash" parent="Theme.SplashScreen">
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="windowActionModeOverlay">true</item>
+
+        <item name="android:windowNoTitle">true</item>
+        <item name="windowNoTitle">true</item>
+
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <style name="Theme.Volts.Splash"
+        parent="Theme.SplashScreen">
 
         <item name="windowSplashScreenBackground">@android:color/white</item>
-
-        <item name="windowSplashScreenAnimatedIcon">@drawable/logo_volts</item>
-
+        <item name="windowSplashScreenAnimatedIcon">@drawable/dog_master_splash_icon</item>
         <item name="postSplashScreenTheme">@style/Theme.Volts</item>
 
     </style>
+
 </resources>

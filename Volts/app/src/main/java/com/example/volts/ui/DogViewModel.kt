@@ -180,13 +180,17 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun feedChili() {
+    fun feedChocolate() {
         sendPhysicalCommand(
-            action = "CHILI",
+            action = "CHOCOLATE",
             type = "FEED",
             commandValue = "EAT",
             onVirtualAction = {
-                updateStats(hunger = 5, happiness = -30, energy = -15, health = -30)
+                updateStats(
+                    hunger = 5,
+                    energy = -10,
+                    health = -55
+                )
             }
         )
     }
@@ -244,6 +248,31 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
 
             sendStateToArduino()
             checkDeath()
+        }
+    }
+
+    fun applyEducationalReward(
+        hunger: Int = 0,
+        happiness: Int = 0,
+        energy: Int = 0,
+        health: Int = 0
+    ) {
+        updateStats(
+            hunger = hunger,
+            happiness = happiness,
+            energy = energy,
+            health = health
+        )
+
+        val rewards = mutableListOf<String>()
+
+        if (hunger > 0) rewards.add("hambre +$hunger")
+        if (happiness > 0) rewards.add("felicidad +$happiness")
+        if (energy > 0) rewards.add("energía +$energy")
+        if (health > 0) rewards.add("salud +$health")
+
+        if (rewards.isNotEmpty()) {
+            _message.value = "Recompensa: ${rewards.joinToString(", ")}"
         }
     }
 
