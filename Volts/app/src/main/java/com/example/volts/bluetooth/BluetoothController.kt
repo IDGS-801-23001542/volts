@@ -33,10 +33,12 @@ class BluetoothController(private val context: Context) {
 
             val device = bluetoothAdapter
                 ?.bondedDevices
-                ?.firstOrNull { it.name == "HC-05" }
+                ?.firstOrNull { it.name == "VOLTS_ESP32" }
 
             if (device == null) {
-                onError("No encontré HC-05. Primero empareja el módulo desde ajustes Bluetooth.")
+                onError(
+                    "No encontré VOLTS_ESP32. Primero empareja el dispositivo desde ajustes Bluetooth."
+                )
                 return
             }
 

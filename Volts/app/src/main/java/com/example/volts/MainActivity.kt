@@ -45,6 +45,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import android.util.Log
 
 enum class ActionMenu {
     FOOD,
@@ -332,11 +333,30 @@ fun VoltsApp(viewModel: DogViewModel) {
             onPet = { viewModel.petDog() },
             onRest = { viewModel.toggleSleep() },
 
-            onMoveForward = { viewModel.moveForward() },
-            onMoveBack = { viewModel.moveBack() },
-            onMoveLeft = { viewModel.moveLeft() },
-            onMoveRight = { viewModel.moveRight() },
-            onStop = { viewModel.stop() },
+            onMoveForward = {
+                Log.d("VOLTS_FLOW", "MainActivity -> moveForward()")
+                viewModel.moveForward()
+            },
+
+            onMoveBack = {
+                Log.d("VOLTS_FLOW", "MainActivity -> moveBack()")
+                viewModel.moveBack()
+            },
+
+            onMoveLeft = {
+                Log.d("VOLTS_FLOW", "MainActivity -> moveLeft()")
+                viewModel.moveLeft()
+            },
+
+            onMoveRight = {
+                Log.d("VOLTS_FLOW", "MainActivity -> moveRight()")
+                viewModel.moveRight()
+            },
+
+            onStop = {
+                Log.d("VOLTS_FLOW", "MainActivity -> stop()")
+                viewModel.stop()
+            },
 
             onEducationalReward = { hunger, happiness, energy, health ->
                 viewModel.applyEducationalReward(
@@ -1234,14 +1254,39 @@ fun MovementButton(
         modifier = Modifier
             .size(58.dp)
             .pointerInteropFilter { event ->
+
+                Log.d(
+                    "VOLTS_TOUCH",
+                    "Botón $text - evento=${event.action}"
+                )
+
                 when (event.action) {
                     android.view.MotionEvent.ACTION_DOWN -> {
+                        Log.d(
+                            "VOLTS_TOUCH",
+                            "Botón $text PRESIONADO"
+                        )
+
                         onDown()
                         true
                     }
 
-                    android.view.MotionEvent.ACTION_UP,
+                    android.view.MotionEvent.ACTION_UP -> {
+                        Log.d(
+                            "VOLTS_TOUCH",
+                            "Botón $text SOLTADO -> STOP"
+                        )
+
+                        onUp()
+                        true
+                    }
+
                     android.view.MotionEvent.ACTION_CANCEL -> {
+                        Log.d(
+                            "VOLTS_TOUCH",
+                            "Botón $text CANCELADO -> STOP"
+                        )
+
                         onUp()
                         true
                     }
