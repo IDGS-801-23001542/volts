@@ -15,6 +15,12 @@ import kotlinx.coroutines.delay
 import com.example.volts.data.FirestoreRepository
 import java.util.UUID
 
+enum class DogMoodState {
+    HAPPY,
+    NORMAL,
+    SAD,
+    SICK
+}
 class DogViewModel(application: Application) : AndroidViewModel(application) {
 
     private val dao = VoltsDatabase.getDatabase(application).dogDao()
@@ -22,6 +28,8 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
     private val bluetooth = BluetoothController(application)
 
     private val _dog = MutableStateFlow<DogEntity?>(null)
+
+    private var lastSentDogMoodState: DogMoodState? = null
     val dog: StateFlow<DogEntity?> = _dog
 
     private val _message = MutableStateFlow("VOLTS listo")
@@ -40,6 +48,7 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
     fun loadDog() {
         viewModelScope.launch {
             _dog.value = repository.getActiveDog()
+            lastSentDogMoodState = null
         }
     }
 
@@ -105,6 +114,7 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
                 )
 
                 sendStateToArduino()
+                sendDogMoodStateToArduino(force = true)
             },
             onError = {
                 _message.value = it
@@ -247,6 +257,7 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             sendStateToArduino()
+            sendDogMoodStateToArduino()
             checkDeath()
         }
     }
@@ -296,6 +307,7 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
             repository.updateDog(updated)
 
             sendStateToArduino()
+            sendDogMoodStateToArduino()
             checkDeath()
         }
     }
@@ -319,6 +331,58 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun calculateDogMoodState(dog: DogEntity): DogMoodState {
+        return when {
+            dog.health <= 30 -> {
+                DogMoodState.SICK
+            }
+
+            dog.happiness <= 30 ||
+                    dog.hunger <= 25 ||
+                    dog.energy <= 20 -> {
+                DogMoodState.SAD
+            }
+
+            dog.happiness >= 70 &&
+                    dog.health >= 60 &&
+                    dog.energy >= 50 &&
+                    dog.hunger >= 40 -> {
+                DogMoodState.HAPPY
+            }
+
+            else -> {
+                DogMoodState.NORMAL
+            }
+        }
+    }
+
+    private fun sendDogMoodStateToArduino(force: Boolean = false) {
+        val current = _dog.value ?: return
+
+        if (!current.alive) return
+
+        val newState = calculateDogMoodState(current)
+
+        if (!force && newState == lastSentDogMoodState) {
+            return
+        }
+
+        lastSentDogMoodState = newState
+
+        val commandValue = when (newState) {
+            DogMoodState.HAPPY -> "STATE_HAPPY"
+            DogMoodState.NORMAL -> "STATE_NORMAL"
+            DogMoodState.SAD -> "STATE_SAD"
+            DogMoodState.SICK -> "STATE_SICK"
+        }
+
+        sendPhysicalCommand(
+            action = commandValue,
+            type = "DOG_STATE",
+            commandValue = commandValue
+        )
+    }
+
     private fun checkDeath() {
         viewModelScope.launch {
             val current = _dog.value ?: return@launch
@@ -334,6 +398,9 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
 
             if (reason != null) {
                 repository.killDog(current, reason)
+
+                lastSentDogMoodState = null
+
                 bluetooth.sendCommand("M")
                 _message.value = reason
                 _dog.value = null
