@@ -358,6 +358,16 @@ fun VoltsApp(viewModel: DogViewModel) {
                 viewModel.stop()
             },
 
+            onSit = {
+                Log.d("VOLTS_FLOW", "MainActivity -> sitDown()")
+                viewModel.sitDown()
+            },
+
+            onStand = {
+                Log.d("VOLTS_FLOW", "MainActivity -> standUp()")
+                viewModel.standUp()
+            },
+
             onEducationalReward = { hunger, happiness, energy, health ->
                 viewModel.applyEducationalReward(
                     hunger = hunger,
@@ -482,6 +492,9 @@ fun DogHomeScreen(
     onMoveRight: () -> Unit,
     onStop: () -> Unit,
 
+    onSit: () -> Unit,
+    onStand: () -> Unit,
+
     onEducationalReward: (
         hunger: Int,
         happiness: Int,
@@ -509,7 +522,7 @@ fun DogHomeScreen(
 
     LaunchedEffect(Unit) {
         while (true) {
-            delay(30_000L)
+            delay(180_000L)
 
             if (educationalMessage == null && !showBluetoothModal) {
                 educationalMessage = environmentalMessages.random()
@@ -800,25 +813,42 @@ fun DogHomeScreen(
         if (showBluetoothModal) {
             BluetoothControlModal(
                 message = message,
-                onClose = { showBluetoothModal = false },
+                onClose = {
+                    showBluetoothModal = false
+                },
                 onConnectBluetooth = onConnectBluetooth,
+
                 onMoveForward = {
                     onMoveForward()
                     registerMovementAction()
                 },
+
                 onMoveBack = {
                     onMoveBack()
                     registerMovementAction()
                 },
+
                 onMoveLeft = {
                     onMoveLeft()
                     registerMovementAction()
                 },
+
                 onMoveRight = {
                     onMoveRight()
                     registerMovementAction()
                 },
-                onStop = onStop
+
+                onStop = onStop,
+
+                onSit = {
+                    onSit()
+                    registerMovementAction()
+                },
+
+                onStand = {
+                    onStand()
+                    registerMovementAction()
+                }
             )
         }
 
@@ -860,7 +890,7 @@ fun StatusBar(dog: DogEntity) {
             StatusItem(R.drawable.icon_happiness, dog.happiness)
             StatusItem(R.drawable.icon_energy, dog.energy)
             StatusItem(R.drawable.icon_health, dog.health)
-            StatusItem(R.drawable.icon_battery, dog.battery)
+            // StatusItem(R.drawable.icon_battery, dog.battery)
         }
     }
 }
@@ -1229,12 +1259,13 @@ fun MovementControls(
     onStop: () -> Unit
 ) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         MovementButton("↑", onMoveForward, onStop)
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             MovementButton("←", onMoveLeft, onStop)
             MovementButton("↓", onMoveBack, onStop)
@@ -1252,7 +1283,7 @@ fun MovementButton(
     Button(
         onClick = {},
         modifier = Modifier
-            .size(58.dp)
+            .size(74.dp)
             .pointerInteropFilter { event ->
 
                 Log.d(
@@ -1302,7 +1333,7 @@ fun MovementButton(
     ) {
         Text(
             text = text,
-            fontSize = 18.sp,
+            fontSize = 44.sp,
             fontWeight = FontWeight.Bold
         )
     }
@@ -1482,7 +1513,9 @@ fun BluetoothControlModal(
     onMoveBack: () -> Unit,
     onMoveLeft: () -> Unit,
     onMoveRight: () -> Unit,
-    onStop: () -> Unit
+    onStop: () -> Unit,
+    onSit: () -> Unit,
+    onStand: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -1538,6 +1571,27 @@ fun BluetoothControlModal(
                     onMoveRight = onMoveRight,
                     onStop = onStop
                 )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = onSit,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Sentarse")
+                    }
+
+                    Button(
+                        onClick = onStand,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Levantarse")
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(26.dp))
 

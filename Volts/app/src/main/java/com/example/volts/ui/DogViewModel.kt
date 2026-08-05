@@ -53,19 +53,38 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun startStatsTimer() {
+        startAwakeTimer()
+        startSleepingTimer()
+    }
+
+    private fun startAwakeTimer() {
         viewModelScope.launch {
             while (true) {
+                // Tiempo entre cada desgaste mientras está despierto
                 delay(5 * 60 * 1000L)
 
                 val current = _dog.value ?: continue
 
                 if (!current.alive) continue
+                if (current.sleeping) continue
 
-                if (current.sleeping) {
-                    applySleepingTick()
-                } else {
-                    applyAwakeTick()
-                }
+                applyAwakeTick()
+            }
+        }
+    }
+
+    private fun startSleepingTimer() {
+        viewModelScope.launch {
+            while (true) {
+                // Tiempo entre cada recuperación mientras está dormido
+                delay(5000L)
+
+                val current = _dog.value ?: continue
+
+                if (!current.alive) continue
+                if (!current.sleeping) continue
+
+                applySleepingTick()
             }
         }
     }
@@ -74,16 +93,14 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
         updateStats(
             hunger = -5,
             happiness = -5,
-            energy = -5,
-            health = -2
+            energy = -5
         )
     }
 
     private fun applySleepingTick() {
         updateStats(
-            energy = 5,
-            hunger = -10,
-            health = -5
+            energy = 30,
+            hunger = -5
         )
     }
 
@@ -113,7 +130,6 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
                     commandValue = "CONNECT"
                 )
 
-                sendStateToArduino()
                 sendDogMoodStateToArduino(force = true)
             },
             onError = {
@@ -168,13 +184,29 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
         sendPhysicalCommand("STOP", "MOVEMENT", "STOP")
     }
 
+    fun sitDown() {
+        sendPhysicalCommand(
+            action = "SIT",
+            type = "MOVEMENT",
+            commandValue = "SIT"
+        )
+    }
+
+    fun standUp() {
+        sendPhysicalCommand(
+            action = "STAND",
+            type = "MOVEMENT",
+            commandValue = "STAND"
+        )
+    }
+
     fun feedCookie() {
         sendPhysicalCommand(
             action = "COOKIE",
             type = "FEED",
             commandValue = "EAT",
             onVirtualAction = {
-                updateStats(hunger = 15, health = 10, energy = -10)
+                updateStats(hunger = 25, health = 10, energy = -5)
             }
         )
     }
@@ -185,7 +217,7 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
             type = "FEED",
             commandValue = "EAT",
             onVirtualAction = {
-                updateStats(hunger = 10, health = 5, energy = -5)
+                updateStats(hunger = 40, health = 25, energy = -5)
             }
         )
     }
@@ -199,7 +231,7 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
                 updateStats(
                     hunger = 5,
                     energy = -10,
-                    health = -55
+                    health = -30
                 )
             }
         )
@@ -256,7 +288,6 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
                 _message.value = "VOLTS despertó"
             }
 
-            sendStateToArduino()
             sendDogMoodStateToArduino()
             checkDeath()
         }
@@ -306,7 +337,6 @@ class DogViewModel(application: Application) : AndroidViewModel(application) {
             _dog.value = updated
             repository.updateDog(updated)
 
-            sendStateToArduino()
             sendDogMoodStateToArduino()
             checkDeath()
         }
